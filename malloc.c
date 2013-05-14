@@ -214,7 +214,7 @@ void * malloc(size_t nbytes)
     Used to change the size of an already allocated memory block. It allocates memory of the requested size by calling malloc,
     copies the contents of the previous memory block and then frees the previous memory block by calling free on that block.
 
-    If the parameter for the ponter is NULL, malloc is called and the address is returned. If the size is 0, a call to free with a return value being NULL.
+    If the parameter for the ponter is NULL, malloc is called and the address is returned. If the size is 0, a call to free with a return value being NULL...
 */
 void * realloc(void *ptr, size_t size) {
     void *new_ptr;
