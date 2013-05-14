@@ -1,3 +1,14 @@
+/*
+    Description:
+    An implementation of malloc, realloc and free which can be used instead of the predefined functions in the standard library libc.
+    
+    Takes use of MMAP(3) for memory mapping if it exists on the system, else uses sbrk(2).
+
+    Authors:
+    Christoffer Gunning, cgunning@kth.se
+    Daniel Forslund, dforsl@kth.se
+*/
+
 #include "brk.h"
 #include <stdio.h>
 #include <unistd.h>
@@ -15,6 +26,9 @@ int getpagesize(void);
 
 typedef long Align;                                     /* for alignment to long boundary */
 
+/*
+    Header for each memory block that contains the size of block and a pointer to the next free block.
+*/
 union header {                                          /* block header */
     struct {
         union header *ptr;                                  /* next block if on free list */
@@ -26,10 +40,12 @@ union header {                                          /* block header */
 typedef union header Header;
 
 static Header base;                                     /* empty list to get started */
-static Header *freep = NULL;                            /* start of free list */
+static Header *freep = NULL;                            /* start of free list, implemented as a circular linked list */
 
-/* free: put block ap in the free list */
-
+/*
+    Used to free memory allocated for the given pointer ap. If possible, it merges the memory with a nearby
+    block container in the list of free blocks. Else 
+*/
 void free(void * ap)
 {
     Header *bp, *p;
@@ -57,7 +73,9 @@ void free(void * ap)
     freep = p;
 }
 
-/* morecore: ask system for more memory */
+/* 
+    if MMAP is defined, this defines end of the heap and provides a function endHeap(0) returning the heap's current end address.
+ */
 
 #ifdef MMAP
     static void * __endHeap = 0;
@@ -69,7 +87,11 @@ void free(void * ap)
     }
 #endif
 
-
+/*
+    Ask the system for more memory. If MMAP is defined, the MMAP function is used for this, else it takes use of sbrk. Uses
+    the free function to merge the new memory with the list of free blocks. Returns a pointer to the free list, or NULL if
+    it failed to get more memory.
+*/ 
 static Header *morecore(unsigned nu)
 {
     void *cp;
@@ -103,6 +125,21 @@ static Header *morecore(unsigned nu)
     return freep;
 }
 
+/*
+    Used to dynamically allocate memory. Does either use the first-fit algorithm or the best-fit algorithm, depending which strategy
+    was set during compilation.
+
+    First-fit:
+    iterates the list of free memory blocks, choosing the first which fits the requested size. If the size of the block is the same size
+    as the memory to be allocated, the block is removed from the list of free blocks. If the size of the block is greater than the size
+    of memory to be allocated, the block size is decreased by the allocated size. A pointer to the allocated memory is returned.
+
+    if no match is found, morecore is called to request more memory.
+
+    Best-fit:
+    works the same way as first-fit except it iterates the list of free memory blocks and chooses the one closest in size to the size of
+    the memory to be allocated.
+*/
 void * malloc(size_t nbytes)
 {
     Header *p, *prevp;
@@ -173,6 +210,12 @@ void * malloc(size_t nbytes)
     #endif
 }
 
+/*
+    Used to change the size of an already allocated memory block. It allocates memory of the requested size by calling malloc,
+    copies the contents of the previous memory block and then frees the previous memory block by calling free on that block.
+
+    If the parameter for the ponter is NULL, malloc is called and the address is returned. If the size is 0, a call to free with a return value being NULL.
+*/
 void * realloc(void *ptr, size_t size) {
     void *new_ptr;
     Header *ptr_h;
